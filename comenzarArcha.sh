@@ -1,76 +1,58 @@
 #!/bin/bash
 
-# Variables
-THEMES_DIR="/usr/share/themes"
-PLANK_THEMES_DIR="/usr/share/plank/themes"
-USER_HOME=$(eval echo ~${SUDO_USER})
-GTK_DIR="$USER_HOME/gtk"
-PLANK_DIR="$USER_HOME/plank"
-ERROR_LOG="$USER_HOME/error_log.txt"
-ERROR_COUNT=0
+# Verificar si Docker está instalado
+if ! command -v docker &> /dev/null; then
+    echo "Docker no está instalado. Instalando Docker..."
+    sudo apt update
+    sudo apt install -y docker.io
+    sudo systemctl start docker
+    sudo systemctl enable docker
+fi
 
-# Función para registrar errores
-log_error() {
-    echo "$1" >> $ERROR_LOG
-    ERROR_COUNT=$((ERROR_COUNT + 1))
-}
+# Verificar si Python 3 está instalado
+if ! command -v python3 &> /dev/null; then
+    echo "Python 3 no está instalado. Instalando Python 3..."
+    sudo apt update
+    sudo apt install -y python3
+fi
 
-# Limpiar archivo de log de errores
-> $ERROR_LOG
+# Descargar la imagen de Arch Linux
+echo "Descargando la imagen de Arch Linux..."
+sudo docker pull archlinux
 
-# Actualiza los repositorios e instala las dependencias necesarias
-sudo apt update || log_error "Error al actualizar los repositorios"
-sudo apt install -y kitty-terminfo xvfb xfce4 xfce4-goodies mpv kdenlive simplescreenrecorder firefox plank papirus-icon-theme dbus-x11 neofetch krita sassc zip unzip make git || log_error "Error al instalar dependencias"
+# Crear y arrancar un contenedor de Docker basado en Arch Linux
+echo "Creando y arrancando el contenedor de Docker..."
+sudo docker run -d --name arch_container archlinux sleep infinity
 
-# Compila e instala los temas GTK
-cd $GTK_DIR || log_error "Error al cambiar al directorio $GTK_DIR"
-make build || log_error "Error al compilar los temas GTK"
-make package || log_error "Error al empaquetar los temas GTK"
-sudo mv $GTK_DIR/pkgs/* $THEMES_DIR || log_error "Error al mover los paquetes compilados al directorio de temas"
+# Añadir un usuario al contenedor
+echo "Añadiendo un usuario al contenedor..."
+sudo docker exec arch_container useradd -m -s /bin/bash user
+sudo docker exec arch_container passwd -d user
 
-# Descomprime todos los archivos de temas
-cd $THEMES_DIR || log_error "Error al cambiar al directorio $THEMES_DIR"
-for theme in Catppuccin*.zip; do
-    sudo unzip "$theme" || log_error "Error al descomprimir $theme"
-done
-sudo rm *.zip || log_error "Error al eliminar los archivos ZIP"
+# Actualizar los paquetes del contenedor e instalar dependencias
+echo "Actualizando paquetes e instalando dependencias..."
+sudo docker exec arch_container bash -c "pacman -Syu --noconfirm && pacman -S --noconfirm python3 gtk3 sudo"
 
-# Instala los temas de Plank
-cd $PLANK_DIR || log_error "Error al cambiar al directorio $PLANK_DIR"
-sudo cp -r Catppuccin Catppuccin-solid $PLANK_THEMES_DIR || log_error "Error al copiar los temas de Plank"
+# Instalar el tema GTK "Catppuccin"
+echo "Instalando el tema GTK 'Catppuccin'..."
+sudo docker exec arch_container bash -c "git clone https://github.com/catppuccin/gtk.git && cd gtk && ./install.sh"
 
-# Configuración de Docker
-docker pull archlinux || log_error "Error al descargar la imagen de Arch Linux"
-docker create -ti --privileged -v $USER_HOME:/home/user/ archlinux || log_error "Error al crear el contenedor de Docker"
-docker start $(docker ps -a -q) || log_error "Error al iniciar el contenedor de Docker"
-docker exec $(docker ps -a -q) useradd -G wheel user || log_error "Error al añadir el usuario en Docker"
-docker exec $(docker ps -a -q) pacman -Syu --noconfirm || log_error "Error al actualizar los paquetes en Docker"
-docker exec $(docker ps -a -q) pacman -S vim nano xfce4 xfce4-goodies xorg-server-xvfb neofetch firefox kdenlive krita plank sudo base-devel git sassc zip unzip noto-fonts noto-fonts-cjk noto-fonts-extra noto-fonts-emoji simplescreenrecorder papirus-icon-theme pulseaudio pavucontrol --noconfirm || log_error "Error al instalar paquetes en Docker"
-docker cp sudoers $(docker ps -a -q):/etc/ || log_error "Error al copiar el archivo sudoers en Docker"
-docker exec $(docker ps -a -q) chown root /etc/sudoers || log_error "Error al cambiar el propietario del archivo sudoers en Docker"
-docker exec $(docker ps -a -q) su -c "git clone https://aur.archlinux.org/paru" -l user || log_error "Error al clonar el repositorio paru en Docker"
-docker exec $(docker ps -a -q) su -c "chmod +x /home/user/compile-paru.sh" -l user || log_error "Error al cambiar permisos del script compile-paru.sh en Docker"
-docker exec $(docker ps -a -q) su -c "/home/user/compile-paru.sh" -l user || log_error "Error al ejecutar el script compile-paru.sh en Docker"
-docker exec $(docker ps -a -q) su -c "git clone https://github.com/catppuccin/gtk" -l user || log_error "Error al clonar el repositorio gtk en Docker"
-docker exec $(docker ps -a -q) su -c "git clone https://github.com/catppuccin/plank" -l user || log_error "Error al clonar el repositorio plank en Docker"
-docker exec $(docker ps -a -q) su -c "chmod +x /home/user/install-catppuccin.sh" -l user || log_error "Error al cambiar permisos del script install-catppuccin.sh en Docker"
-docker exec $(docker ps -a -q) su -c "/home/user/install-catppuccin.sh" -l user || log_error "Error al ejecutar el script install-catppuccin.sh en Docker"
-docker exec $(docker ps -a -q) su -c "paru -S --noconfirm chrome-remote-desktop" -l user || log_error "Error al instalar chrome-remote-desktop en Docker"
+# Instalar Chrome Remote Desktop
+echo "Instalando Chrome Remote Desktop..."
+sudo docker exec arch_container bash -c "pacman -S --noconfirm git base-devel && git clone https://aur.archlinux.org/paru.git && cd paru && makepkg -si --noconfirm && paru -S --noconfirm chrome-remote-desktop"
 
-# Verifica la instalación de Chrome Remote Desktop
-docker exec $(docker ps -a -q) su -c "which chrome-remote-desktop" -l user || log_error "Error al verificar la instalación de chrome-remote-desktop"
+# Configurar el entorno de escritorio XFCE para Chrome Remote Desktop
+echo "Configurando el entorno de escritorio XFCE..."
+sudo docker exec arch_container bash -c "pacman -S --noconfirm xfce4 xfce4-goodies"
+sudo docker exec arch_container bash -c "echo 'exec startxfce4' > /home/user/.xinitrc"
+sudo docker exec arch_container bash -c "chown user:user /home/user/.xinitrc"
 
-# Configura el entorno de escritorio
-docker exec $(docker ps -a -q) su -c "echo 'exec /usr/bin/xfce4-session' > ~/.chrome-remote-desktop-session" -l user || log_error "Error al configurar el entorno de escritorio"
+# Solicitar el código de configuración de Chrome Remote Desktop
+read -p "Introduce el código de configuración de Chrome Remote Desktop: " CRD_CODE
+sudo docker exec arch_container bash -c "su - user -c 'DISPLAY= /opt/google/chrome-remote-desktop/start-host --code=\"$CRD_CODE\"'"
 
-# Solicita al usuario que ingrese el código para Chrome Remote Desktop
-read -p "Por favor, ingresa el código DISPLAY para Chrome Remote Desktop: " CRD_CODE
+# Verificar permisos
+echo "Verificando permisos..."
+sudo docker exec arch_container bash -c "usermod -aG chrome-remote-desktop user"
 
-# Inicia el servicio de Chrome Remote Desktop
-docker exec $(docker ps -a -q) su -c "$CRD_CODE" -l user || log_error "Error al iniciar el servicio de Chrome Remote Desktop"
-
-# Verifica los permisos
-docker exec $(docker ps -a -q) su -c "chmod +x /opt/google/chrome-remote-desktop/start-host" -l user || log_error "Error al verificar los permisos de chrome-remote-desktop"
-
-# Mostrar el número total de errores
-echo "Número total de errores: $ERROR_COUNT"
+echo "Configuración completa. El contenedor de Docker está ejecutando Arch Linux con XFCE y es accesible de forma remota a través de Chrome Remote Desktop."
