@@ -9,7 +9,7 @@ PLANK_DIR="$USER_HOME/plank"
 
 # Actualiza los repositorios e instala las dependencias necesarias
 sudo apt update
-sudo apt install -y kitty-terminfo xvfb xfce4 xfce4-goodies mpv kdenlive simplescreenrecorder firefox-esr plank papirus-icon-theme dbus-x11 neofetch krita sassc zip unzip
+sudo apt install -y kitty-terminfo xvfb xfce4 xfce4-goodies mpv kdenlive simplescreenrecorder firefox plank papirus-icon-theme dbus-x11 neofetch krita sassc zip unzip make git
 
 # Compila e instala los temas GTK
 cd $GTK_DIR
