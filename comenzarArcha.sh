@@ -57,5 +57,20 @@ docker exec $(docker ps -a -q) su -c "chmod +x /home/user/install-catppuccin.sh"
 docker exec $(docker ps -a -q) su -c "/home/user/install-catppuccin.sh" -l user || log_error "Error al ejecutar el script install-catppuccin.sh en Docker"
 docker exec $(docker ps -a -q) su -c "paru -S --noconfirm chrome-remote-desktop" -l user || log_error "Error al instalar chrome-remote-desktop en Docker"
 
+# Verifica la instalación de Chrome Remote Desktop
+docker exec $(docker ps -a -q) su -c "which chrome-remote-desktop" -l user || log_error "Error al verificar la instalación de chrome-remote-desktop"
+
+# Configura el entorno de escritorio
+docker exec $(docker ps -a -q) su -c "echo 'exec /usr/bin/xfce4-session' > ~/.chrome-remote-desktop-session" -l user || log_error "Error al configurar el entorno de escritorio"
+
+# Solicita al usuario que ingrese el código para Chrome Remote Desktop
+read -p "Por favor, ingresa el código DISPLAY para Chrome Remote Desktop: " CRD_CODE
+
+# Inicia el servicio de Chrome Remote Desktop
+docker exec $(docker ps -a -q) su -c "$CRD_CODE" -l user || log_error "Error al iniciar el servicio de Chrome Remote Desktop"
+
+# Verifica los permisos
+docker exec $(docker ps -a -q) su -c "chmod +x /opt/google/chrome-remote-desktop/start-host" -l user || log_error "Error al verificar los permisos de chrome-remote-desktop"
+
 # Mostrar el número total de errores
 echo "Número total de errores: $ERROR_COUNT"
